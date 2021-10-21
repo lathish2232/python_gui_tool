@@ -97,6 +97,8 @@ class etl:
                for k,v in df_static_cols_dict.items():
                    obt_df[k]=v
             lines=""
+            
+            """
             for row in obt_df[0]:
                 rows=[]
                 for col in row.split(sep=","):
@@ -105,15 +107,16 @@ class etl:
                    rows.append(col)
                 line=','.join(rows)+"\n"
                 lines=lines+line
+            """
 
             if self.output_file_ind:
-                #obt_df.to_csv(self.output_file_dir,header=False)
-                with open(self.output_file_dir,"w") as fp:
-                        fp.write(lines)
+                obt_df.to_csv(self.output_file_dir,header=False)
+                #with open(self.output_file_dir,"w") as fp:
+                #        fp.write(lines)
             else:
-                #obt_df.to_csv(self.output_file_dir+"\\output.txt",header=False)
-                with open(self.output_file_dir+"/output.txt","w") as fp:
-                        fp.write(lines)
+                obt_df.to_csv(self.output_file_dir+"\\output.txt",header=False)
+                #with open(self.output_file_dir+"/output.txt","w") as fp:
+                #       fp.write(lines)
         except Exception as e:
             self.errors.append("Load Output File Error="+str(e))
             self.load_status=False
@@ -439,7 +442,7 @@ else:
                     #cols=list(set(columns))
                     #vals=list(set(values))
                     #df_static_cols_dict=dict(zip(cols,vals))
-                    #df_static_cols_dict=dict(zip(columns,values))
+                    df_static_cols_dict=dict(zip(columns,values))
                 with open(data_file,buffering=300000) as f:
                     for line in f:
                         line = line.strip().split()
@@ -456,37 +459,41 @@ else:
                         line = ','.join(str(obj_trgfile[x]) for x in sorted(obj_trgfile))
                         obj_lst.append(line)
                 obt_df=pd.DataFrame(obj_lst)
-                """
+                
                 if df_static_cols_dict: ## not required ************
                     for k,v in df_static_cols_dict.items():
                         obt_df[k]=v
-                """
+                '''
                 lines=""
                 for row in obt_df[0]:
                     rows=[]
                     for col in row.split(sep=","):
-                       if not col.isdigit():
+                       if  not col.isdigit() and col.isalnum():
                             col='"{}"'.format(col)
                        rows.append(col)
                     static_rows=[]
                     for col in values:
-                       if not col.isdigit():
+                       if not col.isdigit() and  col.isalnum():
                             col='"{}"'.format(col)
                        static_rows.append(col)
                     line=','.join(rows)+","+",".join(static_rows)+"\n"  #",".join(values) New change **************
                     lines=lines+line
-    
+                '''
                 if output_file_ind:
-                    #obt_df.to_csv(output_file_dir,index=False,header=False)
+                    obt_df.to_csv(output_file_dir,index=False,header=False)
+                    """
                     with open(output_file_dir,"w") as fp:
                         fp.write(lines)
+                    """
                     folder=os.path.dirname(output_file_dir)
                     messagebox.showinfo(title="Info", message=f" file Success Fully created in to this folder \n {folder}", icon=messagebox.INFO)
                     process_data_lable.destroy()
                 else:
-                    #obt_df.to_csv(output_file_dir+"/output.txt",header=False,index=False)
+                    obt_df.to_csv(output_file_dir+"/output.txt",header=False,index=False)
+                    """
                     with open(output_file_dir+"/output.txt","w") as fp:
                         fp.write(lines)
+                    """
                     messagebox.showinfo(title="Info", message=f" file Success Fully created in to this folder \n {output_file_dir}", icon=messagebox.INFO)
                     process_data_lable.destroy()
                 logging.info('data processing completed.........')
@@ -496,7 +503,4 @@ else:
             msg="Processing Error="+str(e)
             logging.error(e)
             messagebox.showinfo(title="Warning", message=msg, icon=messagebox.ERROR)
-            if process_data_lable:
-                process_data_lable.destroy()
-
     root.mainloop()
