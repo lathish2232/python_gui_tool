@@ -1,4 +1,8 @@
 # python_gui_tool
+
+* Dc_tool.py file have tkinter code <br>
+* setup.py file have exe file configaration code
+
 Using Tkinter with dynamic Columns and and delete Functionality
 
 1. Using Cx_freeze we can canvert to exe file check the setup.py  for convert to exe
