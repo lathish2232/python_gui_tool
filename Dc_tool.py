@@ -14,10 +14,11 @@ import sys
 import time
 
 class etl:
-    def __init__(self,data_file,dimension_dir,output_file_dir):
+    def __init__(self,data_file,dimension_dir,output_file_dir,delimiter=None):
         self.data_file = data_file
         self.dimension_dir = dimension_dir
         self.output_file_dir = output_file_dir
+        self.delimiter = delimiter
         self.errors=[]
     def validation(self):
         self.validation_status=True
@@ -54,6 +55,7 @@ class etl:
                     self.errors.append("Invalid Output File Path ,please try with correct output directory:"+str(e))
                 self.validation_status=False                
     def transform(self):
+        logging.info('processing data .........')
         # Creating the metadata dictionary
         self.transform_status=True
         try:
@@ -63,7 +65,8 @@ class etl:
             self.obj_lst=list()
             
             for ifile,files in enumerate(obj_file):
-                obj_mbrs = pd.Series(data=(pd.read_csv(self.dimension_dir+'\\'+files,delimiter=',',usecols=[0],squeeze=True))).drop_duplicates()
+                # new change delimiter=self.delimiter
+                obj_mbrs = pd.Series(data=(pd.read_csv(self.dimension_dir+'\\'+files,delimiter=self.delimiter,usecols=[0],squeeze=True))).drop_duplicates()
                 # Creating dictionary
                 for i,ele in enumerate(obj_mbrs):
                    obj_dictmap[ele]=ifile
@@ -72,7 +75,7 @@ class etl:
 
             with open(self.data_file,buffering=300000) as f:
                 for line in f:
-                    line = line.strip().split()
+                    line = line.strip().split(sep=self.delimiter) # new change self.delimiter
                     for each in line:
                         each = each.strip('"')
                         if each in obj_dictmap:
@@ -83,7 +86,16 @@ class etl:
                             obj_trgfile[dcol]=each
             
             
-                    line = ','.join(str(obj_trgfile[x]) for x in sorted(obj_trgfile))
+                    # change for enclosing double quotes 
+                    line_items=[]
+                    for x in sorted(obj_trgfile):
+                        item=str(obj_trgfile[x])
+                        if not item.isdigit():
+                            item='"'+item+'"'
+                        line_items.append(item)   
+                    line=','.join(line_items)
+                    
+                    #line = ','.join(str(obj_trgfile[x]) for x in sorted(obj_trgfile))
                     self.obj_lst.append(line)
         except Exception as e:
             self.errors.append("Processing Error="+str(e))
@@ -95,11 +107,17 @@ class etl:
             if df_static_cols_dict:
                for k,v in df_static_cols_dict.items():
                    obt_df[k]=v
-
+            obt_df=pd.DataFrame(self.obj_lst)
+            logging.info(f'data frame conatins {obt_df.shape[0]} Rows and {obt_df.shape[1]} columns')
+            data=obt_df.to_string(header=False, index=False)
             if self.output_file_ind:
-                obt_df.to_csv(self.output_file_dir,header=False)
+                final_data="\n".join([line.lstrip() for line in data.split("\n")])
+                with open(self.output_file_dir,"w") as file:
+                    file.write(final_data)
             else:
-                obt_df.to_csv(self.output_file_dir+"\\output.txt",header=False)
+                final_data="\n".join([line.lstrip() for line in data.split("\n")])
+                with open(self.output_file_dir,"w") as file:
+                    file.write(final_data)
         except Exception as e:
             self.errors.append("Load Output File Error="+str(e))
             self.load_status=False
@@ -110,7 +128,7 @@ log_file=os.path.abspath("logs")+"\\data_converter.log"
 logging.basicConfig(filename=log_file, filemode='w',format='%(asctime)s - %(message)s', level=logging.INFO)
 logging.info('Admin logged in')
 
-if len(sys.argv)-1 == 3:
+if len(sys.argv) >= 4:
        elt_obj=etl(data_file=sys.argv[1],dimension_dir=sys.argv[2],output_file_dir=sys.argv[3])
        
        elt_obj.validation()
@@ -365,7 +383,11 @@ else:
         data_file = souce_text_box.get()
         dimension_dir = dimension_text_box.get()
         output_file_dir = output_text_box.get()
-        _delimiter=delimiter_text_box.get()
+        
+        # new change
+        delimiter=delimiter_text_box.get()
+        
+        _delimiter=None if delimiter.strip() == "" else delimiter
     
         
         if not Path(data_file).is_file():
@@ -386,9 +408,13 @@ else:
                 output_file_ind= False
             else:
                 output_file_ind= True
+        # new change commented below validation
+        '''
         if not _delimiter:
             validation_status=False
             messagebox.showinfo(title="Warning", message=" please select Delimiter  ", icon=messagebox.ERROR)
+        '''
+        
         try:
             if validation_status:
                 process_data_lable= tk.Label(root, 
@@ -408,14 +434,14 @@ else:
                 dcol =len(dimension_file)
     
                 if column_box_list:
-                    for col_value in column_box_list: # not required
+                    for col_value in column_box_list: 
                         columns.append(col_value.get())
                     for value in value_box_list:
                         values.append(value.get())
                     df_static_cols_dict=dict(zip(columns,values))
                 with open(data_file,buffering=300000) as f:
                     for line in f:
-                        line = line.strip().split()
+                        line = line.strip().split(sep=_delimiter) # new change
                         for each in line:
                             each = each.strip('"')
                             if each in obj_dictmap:
@@ -424,24 +450,37 @@ else:
                                 obj_trgfile[obj_dictmap[each]]=each
                             else:
                                 obj_trgfile[dcol]=each
+                                
+                                
+                        # change for enclosing double quotes 
+                        line_items=[]
+                        for x in sorted(obj_trgfile):
+                            item=str(obj_trgfile[x])
+                            if not item.isdigit():
+                                item='"'+item+'"'
+                            line_items.append(item)   
+                        line=','.join(line_items)
     
-                        line = ','.join(str(obj_trgfile[x]) for x in sorted(obj_trgfile))
+                        #line = ','.join(str(obj_trgfile[x]) for x in sorted(obj_trgfile))
                         obj_lst.append(line)
                 obt_df=pd.DataFrame(obj_lst)
                 logging.info(f'data frame conatins {obt_df.shape[0]} Rows and {obt_df.shape[1]} columns')
-                if df_static_cols_dict: ## not required ************
+                if df_static_cols_dict:
                     for k,v in df_static_cols_dict.items():
                         obt_df[k]=v
-               
+                data=obt_df.to_string(header=False, index=False)
+                
                 if output_file_ind:
-                    obt_df.to_csv(output_file_dir,index=False,header=False)
-
+                    final_data="\n".join([line.lstrip() for line in data.split("\n")])
+                    with open(output_file_dir,"w") as file:
+                        file.write(final_data)
                     folder=os.path.dirname(output_file_dir)
                     messagebox.showinfo(title="Info", message=f" file Success Fully created in to this folder \n {folder}", icon=messagebox.INFO)
                     process_data_lable.destroy()
                 else:
-                    obt_df.to_csv(output_file_dir+"/output.txt",header=False,index=False)
-
+                    final_data="\n".join([line.lstrip() for line in data.split("\n")])
+                    with open(output_file_dir+"/output.txt", "w") as file:
+                        file.write(final_data)
                     messagebox.showinfo(title="Info", message=f" file Success Fully created in to this folder \n {output_file_dir}", icon=messagebox.INFO)
                     process_data_lable.destroy()
                 logging.info('data processing completed.........')
