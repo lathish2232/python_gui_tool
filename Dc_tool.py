@@ -1,24 +1,24 @@
 import os
-import time
+import sys
 import logging
 
 from pathlib import Path
 import pandas as pd
 import tkinter as tk
-
+import csv
 from tkinter import filedialog, messagebox
 from tkinter.constants import END, FALSE
 
-import sys
 
-import time
+
 
 class etl:
-    def __init__(self,data_file,dimension_dir,output_file_dir,delimiter=None):
+    def __init__(self,data_file,dimension_dir,output_file_dir,delimiter=','):
         self.data_file = data_file
         self.dimension_dir = dimension_dir
         self.output_file_dir = output_file_dir
         self.delimiter = delimiter
+        print(self.data_file,self.dimension_dir,self.delimiter)
         self.errors=[]
     def validation(self):
         self.validation_status=True
@@ -53,7 +53,8 @@ class etl:
                     self.errors.append("Invalid Dimension File Path ,please try with correct dimension directory:"+str(e))
                 elif idx == 2:
                     self.errors.append("Invalid Output File Path ,please try with correct output directory:"+str(e))
-                self.validation_status=False                
+                self.validation_status=False    
+                raise
     def transform(self):
         logging.info('processing data .........')
         # Creating the metadata dictionary
@@ -62,44 +63,45 @@ class etl:
             obj_file= os.listdir(self.dimension_dir)
             obj_dictmap = {'key':'value'}
             obj_trgfile ={}
+            df = pd.DataFrame()
             self.obj_lst=list()
-            
+
             for ifile,files in enumerate(obj_file):
-                # new change delimiter=self.delimiter
-                obj_mbrs = pd.Series(data=(pd.read_csv(self.dimension_dir+'\\'+files,delimiter=self.delimiter,usecols=[0],squeeze=True))).drop_duplicates()
+                obj_mbrs = pd.Series(data=(pd.read_csv(self.dimension_dir+'\\'+files,delimiter=',',usecols=[0],squeeze=True))).drop_duplicates()
+
                 # Creating dictionary
                 for i,ele in enumerate(obj_mbrs):
-                   obj_dictmap[ele]=ifile
-            
-            dcol =len(self.data_file)
+                    obj_dictmap[ele]=ifile
 
+            dcol =len(obj_file)
             with open(self.data_file,buffering=300000) as f:
                 for line in f:
-                    line = line.strip().split(sep=self.delimiter) # new change self.delimiter
+                    line = line.strip().split()
                     for each in line:
                         each = each.strip('"')
                         if each in obj_dictmap:
                             obj_trgfile.pop(obj_dictmap[each],None)
                             row = (obj_dictmap[each], str(each))
-                            obj_trgfile[obj_dictmap[each]]=each
+                            # new change
+                            if not each.isdigit():
+                                formated_each='"'+each+'"'
+                            obj_trgfile[obj_dictmap[each]]=formated_each
                         else:
+                            # new change 
+                            if not each.isdigit():
+                                each='"'+each+'"'
                             obj_trgfile[dcol]=each
             
-            
-                    # change for enclosing double quotes 
-                    line_items=[]
-                    for x in sorted(obj_trgfile):
-                        item=str(obj_trgfile[x])
-                        if not item.isdigit():
-                            item='"'+item+'"'
-                        line_items.append(item)   
-                    line=','.join(line_items)
-                    
-                    #line = ','.join(str(obj_trgfile[x]) for x in sorted(obj_trgfile))
+                    # new change
+                    line = [str(obj_trgfile[x]) for x in sorted(obj_trgfile)]
+                    #print(line)
                     self.obj_lst.append(line)
+                    
+        #w.write('\n'+line)
         except Exception as e:
             self.errors.append("Processing Error="+str(e))
             self.transform_status=False
+            raise
     def load(self,df_static_cols_dict=None):
         self.load_status=True
         try:
@@ -107,22 +109,21 @@ class etl:
             if df_static_cols_dict:
                for k,v in df_static_cols_dict.items():
                    obt_df[k]=v
-            obt_df=pd.DataFrame(self.obj_lst)
-            logging.info(f'data frame conatins {obt_df.shape[0]} Rows and {obt_df.shape[1]} columns')
-            data=obt_df.to_string(header=False, index=False)
+
             if self.output_file_ind:
-                final_data="\n".join([line.lstrip() for line in data.split("\n")])
-                with open(self.output_file_dir,"w") as file:
-                    file.write(final_data)
+                # new change quoting=csv.QUOTE_NONE
+                try:
+                    print(self.delimiter)
+                    obt_df.to_csv(self.output_file_dir,header=False,index=False,sep=self.delimiter,quoting=csv.QUOTE_NONE)
+                except Exception as e:
+                    print(e)
+                    raise            
             else:
-                final_data="\n".join([line.lstrip() for line in data.split("\n")])
-                with open(self.output_file_dir,"w") as file:
-                    file.write(final_data)
+                # new change quoting=csv.QUOTE_NONE
+                obt_df.to_csv(self.output_file_dir+"\\output.txt",header=False,index=False,sep=self.delimiter,quoting=csv.QUOTE_NONE)                
         except Exception as e:
             self.errors.append("Load Output File Error="+str(e))
             self.load_status=False
-
-
 
 log_file=os.path.abspath("logs")+"\\data_converter.log"
 logging.basicConfig(filename=log_file, filemode='w',format='%(asctime)s - %(message)s', level=logging.INFO)
@@ -425,7 +426,7 @@ else:
                 root.update()
                 dimension_file= os.listdir(dimension_dir)
                 for ifile,files in enumerate(dimension_file):
-                    obj_mbrs = pd.Series(data=(pd.read_csv(dimension_dir+'/'+files,delimiter=_delimiter,usecols=[0],squeeze=True))).drop_duplicates()
+                    obj_mbrs = pd.Series(data=(pd.read_csv(dimension_dir+'/'+files,delimiter=',',usecols=[0],squeeze=True))).drop_duplicates()
     
                     # Creating dictionary
                     for i,ele in enumerate(obj_mbrs):
@@ -441,28 +442,24 @@ else:
                     df_static_cols_dict=dict(zip(columns,values))
                 with open(data_file,buffering=300000) as f:
                     for line in f:
-                        line = line.strip().split(sep=_delimiter) # new change
+                        line = line.strip().split()
                         for each in line:
                             each = each.strip('"')
                             if each in obj_dictmap:
                                 obj_trgfile.pop(obj_dictmap[each],None)
                                 row = (obj_dictmap[each], str(each))
-                                obj_trgfile[obj_dictmap[each]]=each
+                                formated_each=each
+                                if not each.isdigit():
+                                    formated_each='"'+each+'"'
+                                obj_trgfile[obj_dictmap[each]]=formated_each
                             else:
+                                # new change 
+                                if not each.isdigit():
+                                    each='"'+each+'"'
                                 obj_trgfile[dcol]=each
-                                
-                                
-                        # change for enclosing double quotes 
-                        line_items=[]
-                        for x in sorted(obj_trgfile):
-                            item=str(obj_trgfile[x])
-                            if not item.isdigit():
-                                item='"'+item+'"'
-                            line_items.append(item)   
-                        line=','.join(line_items)
-    
-                        #line = ','.join(str(obj_trgfile[x]) for x in sorted(obj_trgfile))
-                        obj_lst.append(line)
+
+                        line = [str(obj_trgfile[x]) for x in sorted(obj_trgfile)]
+                        obj_lst.append(line)   
                 obt_df=pd.DataFrame(obj_lst)
                 logging.info(f'data frame conatins {obt_df.shape[0]} Rows and {obt_df.shape[1]} columns')
                 if df_static_cols_dict:
@@ -471,16 +468,12 @@ else:
                 data=obt_df.to_string(header=False, index=False)
                 
                 if output_file_ind:
-                    final_data="\n".join([line.lstrip() for line in data.split("\n")])
-                    with open(output_file_dir,"w") as file:
-                        file.write(final_data)
+                    obt_df.to_csv(output_file_dir,index=False,header=False,sep=_delimiter,quoting=csv.QUOTE_NONE)
                     folder=os.path.dirname(output_file_dir)
                     messagebox.showinfo(title="Info", message=f" file Success Fully created in to this folder \n {folder}", icon=messagebox.INFO)
                     process_data_lable.destroy()
                 else:
-                    final_data="\n".join([line.lstrip() for line in data.split("\n")])
-                    with open(output_file_dir+"/output.txt", "w") as file:
-                        file.write(final_data)
+                    obt_df.to_csv(output_file_dir+"/output.txt",header=False,index=False,sep=_delimiter,quoting=csv.QUOTE_NONE)
                     messagebox.showinfo(title="Info", message=f" file Success Fully created in to this folder \n {output_file_dir}", icon=messagebox.INFO)
                     process_data_lable.destroy()
                 logging.info('data processing completed.........')
